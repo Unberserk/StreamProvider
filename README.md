@@ -15,6 +15,8 @@ GET /?tmdbId=1429&season=1&episode=1
 
 Success returns `{ "url": "https://…/master.m3u8", "referer": "https://…/", "provider": "VaPlayer", "format": "hls" }`. Preserve the returned Referer for playlist and segment requests. URLs can expire; resolve again when resuming later. A missing title/episode returns HTTP 404 with `code: NO_HLS_STREAM`; availability depends on the upstream provider. No substitute title or sample video is returned.
 
+Responses may also include `previewFrames`, an array of `{start,end,url,x,y,width,height}` WebVTT sprite cues for scene previews. Times are seconds; crop coordinates are original image pixels. Missing, malformed or unavailable thumbnail files return an empty array and do not prevent playback. Not every source/title/episode has thumbnails. Preview images are fetched directly by Roku, not relayed through this service.
+
 Anime uses its TMDB series ID and TMDB season/episode numbering. Spike's anime matcher translates its anime catalog IDs before calling this API.
 
 ## Vercel
