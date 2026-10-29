@@ -1,5 +1,6 @@
 import type { Page } from 'patchright';
 import { getBrowserContext } from '../browser.js';
+import type { PreviewFrame } from '../previewFrames.js';
 
 export abstract class BaseScraper {
     protected page: Page | null = null;
@@ -52,4 +53,5 @@ export type ScraperResult = {
     url: string;
     referer?: string;
     provider?: string;
+    previewFrames?: PreviewFrame[];
 }

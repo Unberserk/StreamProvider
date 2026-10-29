@@ -16,14 +16,16 @@ test('VaPlayer translates TMDB series to IMDb and preserves the requested episod
                 assert.equal(parsed.searchParams.get('type'), 'tv');
                 assert.equal(parsed.searchParams.get('season'), '2');
                 assert.equal(parsed.searchParams.get('episode'), '7');
-                return Response.json({ data: { imdb_id: 'tt2560140', stream_urls: ['https://cdn.example/episode.m3u8'] } });
+                return Response.json({ data: { imdb_id: 'tt2560140', stream_urls: ['https://cdn.example/episode.m3u8'] }, thumbnails_url: 'https://images.example/episode.vtt' });
             }
             assert.equal(new Headers(init?.headers).get('referer'), 'https://nextgencloudfabric.com/');
+            if (url.endsWith('.vtt')) return new Response('WEBVTT\n\n00:00:00 --> 00:00:30\nepisode.jpg#xywh=0,0,160,90');
             return new Response('#EXTM3U\n#EXTINF:6,\nsegment.ts');
         };
         const result = await new VaPlayerScraper().extractStream('1429', 2, 7);
         assert.equal(result.url, 'https://cdn.example/episode.m3u8');
         assert.equal(result.provider, 'VaPlayer');
+        assert.equal(result.previewFrames?.[0].url, 'https://images.example/episode.jpg');
         assert.match(requests[0], /\/tv\/1429\/external_ids/);
     } finally { globalThis.fetch = original; delete process.env.TMDB_API_KEY; }
 });
