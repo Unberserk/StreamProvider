@@ -1,6 +1,6 @@
-import { pool } from './database.ts';
-import type { ScraperResult } from './scrapers/BaseScraper.ts';
-import { getMemoryStream, setMemoryStream, deleteMemoryStream } from './memoryCache.ts';
+import { pool } from './database.js';
+import type { ScraperResult } from './scrapers/BaseScraper.js';
+import { getMemoryStream, setMemoryStream, deleteMemoryStream } from './memoryCache.js';
 
 const CACHE_MAX_AGE_DAYS = 30;
 const MAX_CACHE_ROWS = 1_000_000;

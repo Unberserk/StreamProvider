@@ -1,6 +1,6 @@
-import { BaseScraper, type ScraperResult } from './BaseScraper.ts';
-import { resolveTmdbImdbId } from '../tmdbClient.ts';
-import { verifyStreamUrl } from '../verifyStream.ts';
+import { BaseScraper, type ScraperResult } from './BaseScraper.js';
+import { resolveTmdbImdbId } from '../tmdbClient.js';
+import { verifyStreamUrl } from '../verifyStream.js';
 
 const REFERER = 'https://nextgencloudfabric.com/';
 

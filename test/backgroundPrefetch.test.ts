@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { getQueueLoad, isQueueOverloaded, scheduleTvPrefetchJobs, type TvEpisodeTarget } from '../src/backgroundPrefetch.ts';
+import { getQueueLoad, isQueueOverloaded, scheduleTvPrefetchJobs, type TvEpisodeTarget } from '../src/backgroundPrefetch.js';
 
 type QueueTaskOptions = {
     priority?: number;

@@ -5,7 +5,7 @@ import {
     selectBestEpisodeOption,
     selectBestSearchCandidate,
     selectBestSeasonOption
-} from '../src/scrapers/sflixMatcher.ts';
+} from '../src/scrapers/sflixMatcher.js';
 
 test('normalizeTitle strips punctuation and normalizes spacing', () => {
     assert.equal(

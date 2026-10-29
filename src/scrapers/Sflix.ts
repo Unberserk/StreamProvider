@@ -1,11 +1,11 @@
-import { BaseScraper, ScraperResult } from './BaseScraper.ts';
-import { resolveTmdbLookupMetadata } from '../tmdbClient.ts';
+import { BaseScraper, ScraperResult } from './BaseScraper.js';
+import { resolveTmdbLookupMetadata } from '../tmdbClient.js';
 import {
     selectBestEpisodeOption,
     selectBestSearchCandidate,
     selectBestSeasonOption,
     type SflixSearchCandidate
-} from './sflixMatcher.ts';
+} from './sflixMatcher.js';
 
 const SFLIX_BASE_URL = (process.env.SFLIX_BASE_URL ?? 'https://sflix2.to').replace(/\/+$/, '');
 const SFLIX_NAV_TIMEOUT_MS = Number(process.env.SFLIX_NAV_TIMEOUT_MS ?? 12000);

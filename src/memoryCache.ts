@@ -1,4 +1,4 @@
-import type { ScraperResult } from './scrapers/BaseScraper.ts';
+import type { ScraperResult } from './scrapers/BaseScraper.js';
 
 const entries = new Map<string, { value: ScraperResult; expires: number }>();
 const ttl = 5 * 60 * 1000;

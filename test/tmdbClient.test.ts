@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { resolveNextTvEpisodes } from '../src/tmdbClient.ts';
+import { resolveNextTvEpisodes } from '../src/tmdbClient.js';
 
 const originalFetch = globalThis.fetch;
 const originalApiKey = process.env.TMDB_API_KEY;

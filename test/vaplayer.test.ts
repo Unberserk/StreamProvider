@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { VaPlayerScraper } from '../src/scrapers/VaPlayer.ts';
+import { VaPlayerScraper } from '../src/scrapers/VaPlayer.js';
 
 test('VaPlayer translates TMDB series to IMDb and preserves the requested episode and Referer', async () => {
     const original = globalThis.fetch;

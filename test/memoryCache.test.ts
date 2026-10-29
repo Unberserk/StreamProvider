@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { getMemoryStream, setMemoryStream, deleteMemoryStream } from '../src/memoryCache.ts';
+import { getMemoryStream, setMemoryStream, deleteMemoryStream } from '../src/memoryCache.js';
 
 test('Memory cache isolates episodes, copies values and expires signed stream URLs', () => {
     const clock = Date.now;

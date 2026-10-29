@@ -1,5 +1,5 @@
 import type { Page } from 'patchright';
-import { getBrowserContext } from '../browser.ts';
+import { getBrowserContext } from '../browser.js';
 
 export abstract class BaseScraper {
     protected page: Page | null = null;

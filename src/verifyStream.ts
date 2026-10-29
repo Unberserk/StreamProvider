@@ -1,5 +1,5 @@
 import { isIP } from 'node:net';
-import type { ScraperResult } from './scrapers/BaseScraper.ts';
+import type { ScraperResult } from './scrapers/BaseScraper.js';
 
 export function allowedStreamUrl(value: string): boolean {
     try {

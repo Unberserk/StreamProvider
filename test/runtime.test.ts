@@ -5,8 +5,8 @@ import type { AddressInfo } from 'node:net';
 test('Vercel health and invalid requests work without a database or browser startup', async () => {
     process.env.VERCEL = '1';
     process.env.DATABASE_URL = 'postgres://unused.invalid/no-database';
-    const { default: app } = await import('../src/index.ts');
-    const { pool } = await import('../src/database.ts');
+    const { default: app } = await import('../src/index.js');
+    const { pool } = await import('../src/database.js');
     assert.equal(pool, null);
     const server = app.listen(0, '127.0.0.1');
     await new Promise<void>(resolve => server.once('listening', resolve));

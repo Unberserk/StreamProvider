@@ -1,4 +1,4 @@
-import { BaseScraper, ScraperResult } from './BaseScraper.ts';
+import { BaseScraper, ScraperResult } from './BaseScraper.js';
 
 export class HexaScraper extends BaseScraper {
     async extractStream(tmdbId: string, season?: number, episode?: number): Promise<ScraperResult> {

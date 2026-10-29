@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { allowedStreamUrl, verifyStreamUrl } from '../src/verifyStream.ts';
+import { allowedStreamUrl, verifyStreamUrl } from '../src/verifyStream.js';
 
 test('Stream verification rejects HTML, empty playlists, unsafe redirects and missing media', async () => {
     const original = globalThis.fetch;

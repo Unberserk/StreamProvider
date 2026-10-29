@@ -1,15 +1,15 @@
-import { CinezoScraper } from './scrapers/Cinezo.ts';
-import { HexaScraper } from './scrapers/Hexa.ts';
-import { SflixScraper } from './scrapers/Sflix.ts';
-import { VaPlayerScraper } from './scrapers/VaPlayer.ts';
+import { CinezoScraper } from './scrapers/Cinezo.js';
+import { HexaScraper } from './scrapers/Hexa.js';
+import { SflixScraper } from './scrapers/Sflix.js';
+import { VaPlayerScraper } from './scrapers/VaPlayer.js';
 import {
     getCachedStream,
     setCachedStream,
     updateLastAccessed,
     invalidateCache
-} from './cacheService.ts';
-import type { ScraperResult } from './scrapers/BaseScraper.ts';
-import { verifyStreamUrl } from './verifyStream.ts';
+} from './cacheService.js';
+import type { ScraperResult } from './scrapers/BaseScraper.js';
+import { verifyStreamUrl } from './verifyStream.js';
 
 async function scrapeFromProviders(
     tmdbId: string,

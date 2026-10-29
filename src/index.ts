@@ -1,10 +1,10 @@
 import express, { type Request, type Response } from 'express';
 import PQueue from 'p-queue';
-import { runScraper } from './scraperManager.ts';
-import { initDatabase, pool } from './database.ts';
-import { runCacheCleanup } from './cacheService.ts';
-import { resolveNextTvEpisodes } from './tmdbClient.ts';
-import { isQueueOverloaded, scheduleTvPrefetchJobs } from './backgroundPrefetch.ts';
+import { runScraper } from './scraperManager.js';
+import { initDatabase, pool } from './database.js';
+import { runCacheCleanup } from './cacheService.js';
+import { resolveNextTvEpisodes } from './tmdbClient.js';
+import { isQueueOverloaded, scheduleTvPrefetchJobs } from './backgroundPrefetch.js';
 
 const app = express();
 app.use(express.json());
