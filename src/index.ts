@@ -2,7 +2,8 @@ import express, { type Request, type Response } from 'express';
 import PQueue from 'p-queue';
 import { runScraper } from './scraperManager.js';
 import { initDatabase, pool } from './database.js';
-import { runCacheCleanup } from './cacheService.js';
+import { getCachedStream, runCacheCleanup } from './cacheService.js';
+import { renderScenePreview } from './scenePreview.js';
 import { resolveNextTvEpisodes } from './tmdbClient.js';
 import { isQueueOverloaded, scheduleTvPrefetchJobs } from './backgroundPrefetch.js';
 
@@ -36,6 +37,27 @@ if (!process.env.VERCEL && pool) {
 }
 app.get('/health', (_req: Request, res: Response) => {
     res.json({ status: 'ok', cache: pool ? 'postgres' : 'memory', browser: 'lazy', mediaProxy: false });
+});
+
+app.get('/preview', async (req: Request, res: Response): Promise<any> => {
+    const { tmdbId, season, episode, t } = req.query;
+    const validInt = (value: unknown) => typeof value === 'string' && /^\d+$/.test(value) && Number.isSafeInteger(Number(value));
+    if (!validInt(tmdbId) || Number(tmdbId) < 1 || !validInt(t) || Number(t) > 172800 || Number(t) % 30 !== 0
+        || ((season !== undefined || episode !== undefined) && (!validInt(season) || !validInt(episode) || Number(season) < 1 || Number(season) > 200 || Number(episode) < 1 || Number(episode) > 10000))) {
+        return res.status(400).json({ error: 'A valid title, episode and preview time are required.' });
+    }
+    try {
+        await prepareDatabase();
+        const id = String(tmdbId), s = season === undefined ? undefined : Number(season), e = episode === undefined ? undefined : Number(episode);
+        const source = await getCachedStream(id, s, e) ?? await runScraper(id, s, e);
+        const picture = await renderScenePreview(source, `${id}:${s ?? 0}:${e ?? 0}:${t}`, Number(t));
+        res.setHeader('Cache-Control', 'public, max-age=300, s-maxage=3600');
+        return res.type('image/jpeg').send(picture);
+    } catch {
+        res.setHeader('Cache-Control', 'no-store');
+        res.setHeader('Retry-After', '2');
+        return res.status(503).json({ error: 'Preview unavailable. Playback is unaffected.' });
+    }
 });
 
 app.get('/', async (req: Request, res: Response): Promise<any> => {

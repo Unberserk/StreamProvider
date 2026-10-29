@@ -2,6 +2,7 @@ import { BaseScraper, type ScraperResult } from './BaseScraper.js';
 import { resolveTmdbImdbId } from '../tmdbClient.js';
 import { verifyStreamUrl } from '../verifyStream.js';
 import { loadPreviewFrames } from '../previewFrames.js';
+import { generatedPreviewMetadata } from '../scenePreview.js';
 
 const REFERER = 'https://nextgencloudfabric.com/';
 
@@ -26,7 +27,11 @@ export class VaPlayerScraper extends BaseScraper {
             for (const url of data.data.stream_urls.slice(0, 3)) {
                 if (typeof url !== 'string') continue;
                 const source = { url, referer: REFERER, provider: 'VaPlayer' };
-                if (await verifyStreamUrl(source)) return { ...source, previewFrames: await loadPreviewFrames(data.thumbnails_url, REFERER) };
+                if (await verifyStreamUrl(source)) {
+                    let previewFrames = await loadPreviewFrames(data.thumbnails_url, REFERER);
+                    if (!previewFrames.length) previewFrames = await generatedPreviewMetadata(source, tmdbId, season, episode);
+                    return { ...source, previewFrames };
+                }
             }
         }
         throw new Error('No playable HLS stream for this title and episode');

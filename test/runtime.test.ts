@@ -19,6 +19,9 @@ test('Vercel health and invalid requests work without a database or browser star
             const invalid = await fetch(base + '/' + query);
             assert.equal(invalid.status, 400);
         }
+        for (const query of ['', '?url=https://example.com/a.ts', '?tmdbId=1429&season=1&t=30', '?tmdbId=1429&season=1&episode=1&t=-1', '?tmdbId=550&t=7']) {
+            assert.equal((await fetch(base + '/preview' + query)).status, 400);
+        }
     } finally {
         await new Promise<void>((resolve, reject) => server.close(error => error ? reject(error) : resolve()));
     }

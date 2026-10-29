@@ -3,7 +3,7 @@
   "functions": {
     "src/index.ts": {
       "maxDuration": 60,
-      "includeFiles": "node_modules/@sparticuz/chromium/bin/**"
+      "includeFiles": "node_modules/{@sparticuz/chromium/bin,@ffmpeg-installer/linux-x64}/**"
     }
   }
 }
