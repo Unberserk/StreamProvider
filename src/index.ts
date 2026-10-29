@@ -1,14 +1,10 @@
 import express, { type Request, type Response } from 'express';
 import PQueue from 'p-queue';
 import { runScraper } from './scraperManager.ts';
-import { chromium } from 'patchright';
-import { initDatabase } from './database.ts';
+import { initDatabase, pool } from './database.ts';
 import { runCacheCleanup } from './cacheService.ts';
-import { applyTimingShield } from './stealth.ts';
 import { resolveNextTvEpisodes } from './tmdbClient.ts';
 import { isQueueOverloaded, scheduleTvPrefetchJobs } from './backgroundPrefetch.ts';
-import { tmpdir } from 'os';
-import { join } from 'path';
 
 const app = express();
 app.use(express.json());
@@ -28,50 +24,19 @@ const EFFECTIVE_BACKGROUND_PRIORITY = DIRECT_REQUEST_PRIORITY > 1
     ? Math.min(BACKGROUND_JOB_PRIORITY, DIRECT_REQUEST_PRIORITY - 1)
     : 1;
 const CLEANUP_INTERVAL_MS = 60 * 60 * 1000;
-const CHROME_DATA_DIR = process.env.CHROME_DATA_DIR || join(tmpdir(), 'streamprovider-chrome');
-const BROWSER_CHANNEL = process.env.BROWSER_CHANNEL;
-const BROWSER_EXECUTABLE_PATH = process.env.BROWSER_EXECUTABLE_PATH;
 const backgroundJobKeys = new Set<string>();
-
-const queue = new PQueue({ concurrency: MAX_WORKERS });
-
-const launchOptions: Parameters<typeof chromium.launchPersistentContext>[1] = {
-    headless: true,
-    viewport: null,
-};
-
-if (BROWSER_EXECUTABLE_PATH) {
-    launchOptions.executablePath = BROWSER_EXECUTABLE_PATH;
-} else if (BROWSER_CHANNEL) {
-    launchOptions.channel = BROWSER_CHANNEL as 'chromium' | 'chrome' | 'msedge';
+const queue = new PQueue({ concurrency: process.env.VERCEL ? 1 : MAX_WORKERS });
+let databaseReady: Promise<void> | undefined;
+function prepareDatabase(): Promise<void> {
+    if (!databaseReady) databaseReady = initDatabase().catch(error => { databaseReady = undefined; throw error; });
+    return databaseReady;
 }
-
-export const context = await chromium.launchPersistentContext(CHROME_DATA_DIR, launchOptions);
-
-await applyTimingShield(context);
-
-await context.addCookies([{
-    name: 'show_share',
-    value: 'true',
-    domain: 'sflix2.to',
-    path: '/',
-    httpOnly: false,
-    secure: false,
-    sameSite: 'Lax',
-}]);
-
-await initDatabase();
-
-setInterval(async () => {
-    try {
-        await runCacheCleanup();
-    } catch (error) {
-        const message = error instanceof Error ? error.message : String(error);
-        console.error(`[Cache Cleanup Error] ${message}`);
-    }
-}, CLEANUP_INTERVAL_MS);
-
-runCacheCleanup().catch(console.error);
+if (!process.env.VERCEL && pool) {
+    setInterval(() => { void runCacheCleanup().catch(console.error); }, CLEANUP_INTERVAL_MS).unref();
+}
+app.get('/health', (_req: Request, res: Response) => {
+    res.json({ status: 'ok', cache: pool ? 'postgres' : 'memory', browser: 'lazy', mediaProxy: false });
+});
 
 app.get('/', async (req: Request, res: Response): Promise<any> => {
     const { tmdbId, season, episode } = req.query;
@@ -115,12 +80,13 @@ app.get('/', async (req: Request, res: Response): Promise<any> => {
             });
         }
 
+        await prepareDatabase();
         const result = await queue.add(
             () => runScraper(tmdbIdStr, seasonNum, episodeNum),
             { priority: DIRECT_REQUEST_PRIORITY }
         );
 
-        if (seasonNum !== undefined && episodeNum !== undefined) {
+        if (!process.env.VERCEL && seasonNum !== undefined && episodeNum !== undefined) {
             void scheduleTvPrefetchJobs({
                 queue,
                 tmdbId: tmdbIdStr,
@@ -135,7 +101,8 @@ app.get('/', async (req: Request, res: Response): Promise<any> => {
             });
         }
 
-        return res.json(result);
+        res.setHeader('Cache-Control', 'no-store');
+        return res.json({ ...result, format: 'hls' });
     } catch (error) {
         const message = error instanceof Error ? error.message : 'Internal Server Error';
         console.error(`[Error] ${message}`);
@@ -144,10 +111,11 @@ app.get('/', async (req: Request, res: Response): Promise<any> => {
             return res.status(408).json({ error: "Scraping timed out, no stream found." });
         }
 
-        return res.status(500).json({ error: message });
+        return res.status(404).json({ error: 'No playable HLS stream is available for this title and episode.', code: 'NO_HLS_STREAM' });
     }
 });
 
-app.listen(PORT, () => {
-    console.log(`StreamProvider running on http://localhost:${PORT}`);
-});
+export default app;
+if (!process.env.VERCEL) {
+    app.listen(PORT, () => { console.log(`StreamProvider running on http://localhost:${PORT}`); });
+}

@@ -241,12 +241,7 @@ export class SflixScraper extends BaseScraper {
         const page = this.requirePage();
         await this.closeShareModalIfPresent();
 
-        const request = await page.waitForRequest(
-            (req) => req.url().includes('.m3u8') || req.url().includes('.mp4'),
-            { timeout }
-        );
-
-        return { url: request.url(), referer: request.headers().referer };
+        return this.waitForM3u8(timeout);
     }
 
     private toAbsoluteUrl(input: string): string {

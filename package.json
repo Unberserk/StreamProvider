@@ -3,7 +3,10 @@
   "version": "1.0.0",
   "main": "src/index.ts",
   "type": "module",
+  "engines": { "node": "22.x" },
   "scripts": {
+    "start": "tsx src/index.ts",
+    "check": "tsc --noEmit",
     "run": "npx tsx src/index.ts",
     "test": "npx tsx --test test/**/*.test.ts"
   },
@@ -12,6 +15,7 @@
   "license": "AGPL-3.0",
   "description": "REST API for direct m3u8 urls from TMDB IDs",
   "dependencies": {
+    "@sparticuz/chromium": "153.0.0",
     "express": "^5.2.1",
     "p-queue": "^9.0.1",
     "patchright": "^1.58.2",

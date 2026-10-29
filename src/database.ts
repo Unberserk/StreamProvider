@@ -1,12 +1,8 @@
-import 'dotenv/config'
 import pg from 'pg';
 
 const { Pool } = pg;
 
-const databaseUrl = process.env.DATABASE_URL;
-if (!databaseUrl) {
-    throw new Error('DATABASE_URL is required.');
-}
+const databaseUrl = process.env.VERCEL ? undefined : process.env.DATABASE_URL;
 
 const databaseSslMode = (process.env.DATABASE_SSL_MODE ?? 'require').toLowerCase();
 const sslConfig = databaseSslMode === 'disable' || databaseSslMode === 'off' || databaseSslMode === 'false'
@@ -15,12 +11,13 @@ const sslConfig = databaseSslMode === 'disable' || databaseSslMode === 'off' || 
         rejectUnauthorized: databaseSslMode !== 'no-verify',
     };
 
-const pool = new Pool({
+const pool = databaseUrl ? new Pool({
     connectionString: databaseUrl,
     ssl: sslConfig,
-});
+}) : null;
 
 export async function initDatabase(): Promise<void> {
+    if (!pool) return;
     const client = await pool.connect();
     try {
         await client.query(`

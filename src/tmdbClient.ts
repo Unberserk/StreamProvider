@@ -2,6 +2,12 @@ const TMDB_BASE_URL = (process.env.TMDB_BASE_URL ?? 'https://api.themoviedb.org/
 const TMDB_TIMEOUT_MS = Number(process.env.TMDB_TIMEOUT_MS ?? 7000);
 const TMDB_MAX_RETRIES = Number(process.env.TMDB_MAX_RETRIES ?? 2);
 
+export async function resolveTmdbImdbId(id: string, television: boolean): Promise<string> {
+    const result = await fetchTmdb<{ imdb_id?: string }>(`/${television ? 'tv' : 'movie'}/${id}/external_ids`);
+    if (!result.imdb_id || !/^tt\d+$/.test(result.imdb_id)) throw new Error('No IMDb match for this TMDB title');
+    return result.imdb_id;
+}
+
 type TmdbMovieResponse = {
     id: number;
     title?: string;
@@ -65,9 +71,10 @@ export type TvEpisodeCursor = {
 };
 
 function getTmdbApiKey(): string {
+    if (process.env.TMDB_READ_TOKEN?.trim()) return '';
     const key = process.env.TMDB_API_KEY?.trim();
     if (!key) {
-        throw new Error('TMDB API key is missing. Set TMDB_API_KEY.');
+        throw new Error('TMDB metadata access is missing. Set TMDB_API_KEY or TMDB_READ_TOKEN.');
     }
     return key;
 }
@@ -89,7 +96,8 @@ async function fetchWithTimeout(url: string, timeoutMs: number): Promise<Respons
             method: 'GET',
             signal: controller.signal,
             headers: {
-                accept: 'application/json'
+                accept: 'application/json',
+                ...(process.env.TMDB_READ_TOKEN?.trim() ? { Authorization: `Bearer ${process.env.TMDB_READ_TOKEN.trim()}` } : {})
             }
         });
     } finally {
@@ -99,7 +107,7 @@ async function fetchWithTimeout(url: string, timeoutMs: number): Promise<Respons
 
 async function fetchTmdb<T>(path: string): Promise<T> {
     const apiKey = getTmdbApiKey();
-    const url = `${TMDB_BASE_URL}${path}${path.includes('?') ? '&' : '?'}api_key=${encodeURIComponent(apiKey)}`;
+    const url = `${TMDB_BASE_URL}${path}${apiKey ? `${path.includes('?') ? '&' : '?'}api_key=${encodeURIComponent(apiKey)}` : ''}`;
 
     let lastError: unknown;
 

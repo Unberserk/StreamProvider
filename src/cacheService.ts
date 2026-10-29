@@ -1,5 +1,6 @@
 import { pool } from './database.ts';
 import type { ScraperResult } from './scrapers/BaseScraper.ts';
+import { getMemoryStream, setMemoryStream, deleteMemoryStream } from './memoryCache.ts';
 
 const CACHE_MAX_AGE_DAYS = 30;
 const MAX_CACHE_ROWS = 1_000_000;
@@ -9,6 +10,7 @@ export async function getCachedStream(
     season?: number,
     episode?: number
 ): Promise<ScraperResult | null> {
+    if (!pool) return getMemoryStream(tmdbId, season, episode);
     const result = await pool.query(
         `SELECT stream_url, referer FROM stream_cache
          WHERE tmdb_id = $1 AND season IS NOT DISTINCT FROM $2 AND episode IS NOT DISTINCT FROM $3`,
@@ -30,6 +32,7 @@ export async function updateLastAccessed(
     season?: number,
     episode?: number
 ): Promise<void> {
+    if (!pool) return;
     await pool.query(
         `UPDATE stream_cache SET last_accessed_at = CURRENT_TIMESTAMP
          WHERE tmdb_id = $1 AND season IS NOT DISTINCT FROM $2 AND episode IS NOT DISTINCT FROM $3`,
@@ -43,6 +46,7 @@ export async function setCachedStream(
     episode: number | undefined,
     data: ScraperResult
 ): Promise<void> {
+    if (!pool) { setMemoryStream(tmdbId, season, episode, data); return; }
     await pool.query(
         `INSERT INTO stream_cache (tmdb_id, season, episode, stream_url, referer, last_accessed_at)
          VALUES ($1, $2, $3, $4, $5, CURRENT_TIMESTAMP)
@@ -57,6 +61,7 @@ export async function invalidateCache(
     season?: number,
     episode?: number
 ): Promise<void> {
+    if (!pool) { deleteMemoryStream(tmdbId, season, episode); return; }
     await pool.query(
         `DELETE FROM stream_cache
          WHERE tmdb_id = $1 AND season IS NOT DISTINCT FROM $2 AND episode IS NOT DISTINCT FROM $3`,
@@ -65,6 +70,7 @@ export async function invalidateCache(
 }
 
 export async function cleanupStaleCache(): Promise<number> {
+    if (!pool) return 0;
     const result = await pool.query(
         `DELETE FROM stream_cache
          WHERE last_accessed_at < NOW() - INTERVAL '${CACHE_MAX_AGE_DAYS} days'
@@ -75,6 +81,7 @@ export async function cleanupStaleCache(): Promise<number> {
 }
 
 export async function enforceMaxCacheSize(): Promise<number> {
+    if (!pool) return 0;
     const countResult = await pool.query('SELECT COUNT(*) as count FROM stream_cache');
     const count = parseInt(countResult.rows[0].count, 10);
 
