@@ -2,6 +2,7 @@ import { CinezoScraper } from './scrapers/Cinezo.js';
 import { HexaScraper } from './scrapers/Hexa.js';
 import { SflixScraper } from './scrapers/Sflix.js';
 import { VaPlayerScraper } from './scrapers/VaPlayer.js';
+import { VidZeeScraper } from './scrapers/VidZee.js';
 import {
     getCachedStream,
     setCachedStream,
@@ -44,7 +45,7 @@ async function scrapeFromProviders(
     throw new Error(message);
 }
 
-export async function runScraper(
+async function resolvePrimary(
     tmdbId: string,
     season?: number,
     episode?: number
@@ -66,4 +67,32 @@ export async function runScraper(
     await setCachedStream(tmdbId, season, episode, freshData);
 
     return freshData;
+}
+
+async function resolveVidZee(tmdbId: string, season?: number, episode?: number): Promise<ScraperResult> {
+    const source = await new VidZeeScraper().extractStream(tmdbId, season, episode);
+    if (!await verifyStreamUrl(source)) throw new Error('VidZee returned no playable HLS playlist');
+    return source;
+}
+
+export async function runScraper(tmdbId: string, season?: number, episode?: number): Promise<ScraperResult> {
+    try {
+        return await resolvePrimary(tmdbId, season, episode);
+    } catch (primaryError) {
+        // Keep fallback streams out of the primary cache so VaPlayer gets the next attempt.
+        return await resolveVidZee(tmdbId, season, episode).catch(() => { throw primaryError; });
+    }
+}
+
+export async function listStreams(tmdbId: string, season?: number, episode?: number): Promise<ScraperResult[]> {
+    const [primary, backup] = await Promise.allSettled([
+        resolvePrimary(tmdbId, season, episode),
+        resolveVidZee(tmdbId, season, episode),
+    ]);
+    if (primary.status === 'fulfilled') {
+        if (backup.status === 'fulfilled' && backup.value.url !== primary.value.url) return [primary.value, backup.value];
+        return [primary.value];
+    }
+    if (backup.status === 'fulfilled') return [backup.value];
+    throw primary.reason;
 }

@@ -1,6 +1,6 @@
 import express, { type Request, type Response } from 'express';
 import PQueue from 'p-queue';
-import { runScraper } from './scraperManager.js';
+import { listStreams, runScraper } from './scraperManager.js';
 import { initDatabase, pool } from './database.js';
 import { getCachedStream, runCacheCleanup } from './cacheService.js';
 import { renderScenePreview } from './scenePreview.js';
@@ -62,6 +62,7 @@ app.get('/preview', async (req: Request, res: Response): Promise<any> => {
 
 app.get('/', async (req: Request, res: Response): Promise<any> => {
     const { tmdbId, season, episode } = req.query;
+    const listProviders = req.query.sources === 'all';
 
     if (!tmdbId) {
         return res.status(400).json({ error: "Missing tmdbId!" });
@@ -74,7 +75,7 @@ app.get('/', async (req: Request, res: Response): Promise<any> => {
         const tmdbIdStr = String(tmdbId);
         const tmdbNumeric = Number(tmdbIdStr);
 
-        if (!Number.isInteger(tmdbNumeric) || tmdbNumeric <= 0) {
+        if (!/^\d+$/.test(tmdbIdStr) || !Number.isSafeInteger(tmdbNumeric) || tmdbNumeric <= 0) {
             return res.status(400).json({ error: "tmdbId must be a positive integer." });
         }
 
@@ -103,6 +104,14 @@ app.get('/', async (req: Request, res: Response): Promise<any> => {
         }
 
         await prepareDatabase();
+        if (listProviders) {
+            const streams = await queue.add(
+                () => listStreams(tmdbIdStr, seasonNum, episodeNum),
+                { priority: DIRECT_REQUEST_PRIORITY }
+            );
+            res.setHeader('Cache-Control', 'no-store');
+            return res.json({ streams: streams.map(source => ({ ...source, format: 'hls' })) });
+        }
         const result = await queue.add(
             () => runScraper(tmdbIdStr, seasonNum, episodeNum),
             { priority: DIRECT_REQUEST_PRIORITY }

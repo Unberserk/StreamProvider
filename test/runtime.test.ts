@@ -26,3 +26,72 @@ test('Vercel health and invalid requests work without a database or browser star
         await new Promise<void>((resolve, reject) => server.close(error => error ? reject(error) : resolve()));
     }
 });
+
+test('Roku can list the backup and VaPlayer resumes priority after a failed lookup', async t => {
+    process.env.VERCEL = '1';
+    const { default: app } = await import('../src/index.js');
+    const server = app.listen(0, '127.0.0.1');
+    await new Promise<void>(resolve => server.once('listening', resolve));
+    const base = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
+    const realFetch = globalThis.fetch;
+    const playlist = '#EXTM3U\n#EXTINF:6,\nsegment.ts';
+    const vidzeeRequests: string[] = [];
+    let vaPlayerAvailable = true;
+    let vidzeeAvailable = true;
+    t.mock.method(globalThis, 'fetch', async (input: string | URL, init?: RequestInit) => {
+        const url = new URL(input);
+        if (url.origin === base) return realFetch(input, init);
+        if (url.pathname.endsWith('/external_ids')) return Response.json({ imdb_id: 'tt1234567' });
+        if (url.hostname === 'streamdata.vaplayer.ru') {
+            return vaPlayerAvailable
+                ? Response.json({ data: { imdb_id: 'tt1234567', stream_urls: ['https://va.example/main.m3u8'] } })
+                : new Response('', { status: 503 });
+        }
+        if (url.hostname === 'core.vidzee.wtf') {
+            vidzeeRequests.push(url.pathname);
+            assert.equal(url.searchParams.get('s'), 'dcloud');
+            assert.equal(url.searchParams.get('e'), '0');
+            return vidzeeAvailable
+                ? Response.json({ url: 'https://cdn2.slowcloud.live/backup.m3u8' })
+                : new Response('', { status: 502 });
+        }
+        if (url.hostname === 'cdn2.slowcloud.live') {
+            assert.equal(new Headers(init?.headers).get('referer'), 'https://player.vidzee.wtf/');
+            return new Response(playlist);
+        }
+        assert.equal(url.hostname, 'va.example');
+        return new Response(playlist);
+    });
+    const originalKey = process.env.TMDB_API_KEY;
+    process.env.TMDB_API_KEY = 'test-key';
+    try {
+        const lookup = async (query: string) => {
+            const response = await fetch(base + '/?' + query);
+            assert.equal(response.status, 200);
+            return response.json();
+        };
+        const primary = await lookup('tmdbId=550');
+        assert.equal(primary.provider, 'VaPlayer');
+        assert.equal(primary.format, 'hls');
+        assert.equal(vidzeeRequests.length, 0);
+
+        const expanded = await lookup('tmdbId=1396&season=2&episode=3&sources=all');
+        assert.deepEqual(expanded.streams.map((source: { provider: string }) => source.provider), ['VaPlayer', 'VidZee dcloud']);
+        assert.equal(expanded.streams[1].format, 'hls');
+        assert.equal(vidzeeRequests.at(-1), '/streams/tv/1396/2/3');
+
+        vaPlayerAvailable = false;
+        assert.equal((await lookup('tmdbId=1429&season=1&episode=2')).provider, 'VidZee dcloud');
+        assert.equal(vidzeeRequests.at(-1), '/streams/tv/1429/1/2');
+        vaPlayerAvailable = true;
+        assert.equal((await lookup('tmdbId=1429&season=1&episode=2')).provider, 'VaPlayer');
+
+        vidzeeAvailable = false;
+        assert.deepEqual((await lookup('tmdbId=550&sources=all')).streams.map((source: { provider: string }) => source.provider), ['VaPlayer']);
+        assert.equal(vidzeeRequests.at(-1), '/streams/movie/550');
+    } finally {
+        if (originalKey === undefined) delete process.env.TMDB_API_KEY;
+        else process.env.TMDB_API_KEY = originalKey;
+        await new Promise<void>((resolve, reject) => server.close(error => error ? reject(error) : resolve()));
+    }
+});
