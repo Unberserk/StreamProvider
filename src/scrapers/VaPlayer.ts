@@ -7,6 +7,8 @@ import { generatedPreviewMetadata } from '../scenePreview.js';
 const REFERER = 'https://nextgencloudfabric.com/';
 
 export class VaPlayerScraper extends BaseScraper {
+    constructor(private readonly includePreviews = true) { super(); }
+
     async extractStream(tmdbId: string, season?: number, episode?: number): Promise<ScraperResult> {
         const imdb = await resolveTmdbImdbId(tmdbId, season !== undefined);
         const endpoint = new URL('https://streamdata.vaplayer.ru/api.php');
@@ -28,6 +30,7 @@ export class VaPlayerScraper extends BaseScraper {
                 if (typeof url !== 'string') continue;
                 const source = { url, referer: REFERER, provider: 'VaPlayer' };
                 if (await verifyStreamUrl(source)) {
+                    if (!this.includePreviews) return source;
                     let previewFrames = await loadPreviewFrames(data.thumbnails_url, REFERER);
                     if (!previewFrames.length) previewFrames = await generatedPreviewMetadata(source, tmdbId, season, episode);
                     return { ...source, previewFrames };

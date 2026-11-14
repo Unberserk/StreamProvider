@@ -9,15 +9,19 @@ import {
     updateLastAccessed,
     invalidateCache
 } from './cacheService.js';
-import type { ScraperResult } from './scrapers/BaseScraper.js';
+import type { BaseScraper, ScraperResult } from './scrapers/BaseScraper.js';
 import { verifyStreamUrl } from './verifyStream.js';
+
+type StreamOptions = { includePreviews?: boolean; refresh?: boolean };
 
 async function scrapeFromProviders(
     tmdbId: string,
-    season?: number,
-    episode?: number
+    season: number | undefined,
+    episode: number | undefined,
+    includePreviews: boolean
 ): Promise<ScraperResult> {
-    const providers = [{ name: 'VaPlayer', scraper: new VaPlayerScraper() }];
+    const vaPlayer = new VaPlayerScraper(includePreviews);
+    const providers: { name: string; scraper: BaseScraper }[] = [{ name: 'VaPlayer', scraper: vaPlayer }];
     if (process.env.ENABLE_BROWSER_PROVIDERS === '1') providers.push(
         { name: 'SFlix.to', scraper: new SflixScraper() },
         { name: 'Cinezo.net', scraper: new CinezoScraper() },
@@ -30,7 +34,7 @@ async function scrapeFromProviders(
         try {
             const data = await provider.scraper.extractStream(tmdbId, season, episode);
 
-            if (await verifyStreamUrl(data)) {
+            if (provider.scraper === vaPlayer || await verifyStreamUrl(data)) {
                 return data;
             }
         } catch (error) {
@@ -47,23 +51,26 @@ async function scrapeFromProviders(
 
 async function resolvePrimary(
     tmdbId: string,
-    season?: number,
-    episode?: number
+    season: number | undefined,
+    episode: number | undefined,
+    { includePreviews = true, refresh = false }: StreamOptions
 ): Promise<ScraperResult> {
-    const cached = await getCachedStream(tmdbId, season, episode);
+    const cached = refresh ? null : await getCachedStream(tmdbId, season, episode);
+    const needsPreviews = includePreviews && cached?.provider === 'VaPlayer' && cached.previewFrames === undefined;
 
-    if (cached) {
+    if (cached && !needsPreviews) {
         const isValid = await verifyStreamUrl(cached);
 
         if (isValid) {
             await updateLastAccessed(tmdbId, season, episode);
-            return cached;
+            if (includePreviews) return cached;
+            return { url: cached.url, referer: cached.referer, provider: cached.provider };
         }
 
         await invalidateCache(tmdbId, season, episode);
     }
 
-    const freshData = await scrapeFromProviders(tmdbId, season, episode);
+    const freshData = await scrapeFromProviders(tmdbId, season, episode, includePreviews);
     await setCachedStream(tmdbId, season, episode, freshData);
 
     return freshData;
@@ -75,18 +82,18 @@ async function resolveVidZee(tmdbId: string, season?: number, episode?: number):
     return source;
 }
 
-export async function runScraper(tmdbId: string, season?: number, episode?: number): Promise<ScraperResult> {
+export async function runScraper(tmdbId: string, season?: number, episode?: number, options: StreamOptions = {}): Promise<ScraperResult> {
     try {
-        return await resolvePrimary(tmdbId, season, episode);
+        return await resolvePrimary(tmdbId, season, episode, options);
     } catch (primaryError) {
         // Keep fallback streams out of the primary cache so VaPlayer gets the next attempt.
         return await resolveVidZee(tmdbId, season, episode).catch(() => { throw primaryError; });
     }
 }
 
-export async function listStreams(tmdbId: string, season?: number, episode?: number): Promise<ScraperResult[]> {
+export async function listStreams(tmdbId: string, season?: number, episode?: number, options: StreamOptions = {}): Promise<ScraperResult[]> {
     const [primary, backup] = await Promise.allSettled([
-        resolvePrimary(tmdbId, season, episode),
+        resolvePrimary(tmdbId, season, episode, options),
         resolveVidZee(tmdbId, season, episode),
     ]);
     if (primary.status === 'fulfilled') {

@@ -49,7 +49,7 @@ app.get('/preview', async (req: Request, res: Response): Promise<any> => {
     try {
         await prepareDatabase();
         const id = String(tmdbId), s = season === undefined ? undefined : Number(season), e = episode === undefined ? undefined : Number(episode);
-        const source = await getCachedStream(id, s, e) ?? await runScraper(id, s, e);
+        const source = await getCachedStream(id, s, e) ?? await runScraper(id, s, e, { includePreviews: false });
         const picture = await renderScenePreview(source, `${id}:${s ?? 0}:${e ?? 0}:${t}`, Number(t));
         res.setHeader('Cache-Control', 'public, max-age=300, s-maxage=3600');
         return res.type('image/jpeg').send(picture);
@@ -63,6 +63,7 @@ app.get('/preview', async (req: Request, res: Response): Promise<any> => {
 app.get('/', async (req: Request, res: Response): Promise<any> => {
     const { tmdbId, season, episode } = req.query;
     const listProviders = req.query.sources === 'all';
+    const options = { includePreviews: req.query.previews !== 'off', refresh: req.query.refresh === '1' };
 
     if (!tmdbId) {
         return res.status(400).json({ error: "Missing tmdbId!" });
@@ -106,14 +107,14 @@ app.get('/', async (req: Request, res: Response): Promise<any> => {
         await prepareDatabase();
         if (listProviders) {
             const streams = await queue.add(
-                () => listStreams(tmdbIdStr, seasonNum, episodeNum),
+                () => listStreams(tmdbIdStr, seasonNum, episodeNum, options),
                 { priority: DIRECT_REQUEST_PRIORITY }
             );
             res.setHeader('Cache-Control', 'no-store');
             return res.json({ streams: streams.map(source => ({ ...source, format: 'hls' })) });
         }
         const result = await queue.add(
-            () => runScraper(tmdbIdStr, seasonNum, episodeNum),
+            () => runScraper(tmdbIdStr, seasonNum, episodeNum, options),
             { priority: DIRECT_REQUEST_PRIORITY }
         );
 
