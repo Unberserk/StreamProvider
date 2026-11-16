@@ -78,9 +78,15 @@ async function resolvePrimary(
 }
 
 async function verifiedBackup(scraper: BaseScraper, tmdbId: string, season?: number, episode?: number): Promise<ScraperResult> {
-    const source = await scraper.extractStream(tmdbId, season, episode);
-    if (!await verifyStreamUrl(source)) throw new Error('Backup returned no playable HLS playlist');
-    return source;
+    try {
+        const source = await scraper.extractStream(tmdbId, season, episode);
+        if (!await verifyStreamUrl(source)) throw new Error('Backup returned no playable HLS playlist');
+        return source;
+    } catch (error) {
+        const reason = error instanceof Error ? error.message : 'lookup failed';
+        console.warn('[StreamProvider] ' + scraper.constructor.name + ': ' + reason);
+        throw error;
+    }
 }
 
 export async function runScraper(tmdbId: string, season?: number, episode?: number, options: StreamOptions = {}): Promise<ScraperResult> {
