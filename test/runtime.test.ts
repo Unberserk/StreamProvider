@@ -42,8 +42,6 @@ test('Roku can list the backup and VaPlayer resumes priority after a failed look
     let previewRequests = 0;
     let primaryUrl = 'https://va.example/main.m3u8';
     let vidzeeAvailable = true;
-    let vixSrcAvailable = false;
-    const vixLookups: string[] = [];
     t.mock.method(globalThis, 'fetch', async (input: string | URL, init?: RequestInit) => {
         const url = new URL(input);
         if (url.origin === base) return realFetch(input, init);
@@ -64,22 +62,6 @@ test('Roku can list the backup and VaPlayer resumes priority after a failed look
         }
         if (url.hostname === 'cdn2.slowcloud.live') {
             assert.equal(new Headers(init?.headers).get('referer'), 'https://player.vidzee.wtf/');
-            return new Response(playlist);
-        }
-        if (url.hostname === 'vixsrc.to') {
-            if (!vixSrcAvailable) return new Response('', { status: 404 });
-            if (url.pathname.startsWith('/api/')) {
-                vixLookups.push(url.pathname);
-                return Response.json({ src: '/embed/42?token=embed-only' });
-            }
-            if (url.pathname === '/embed/42') {
-                const expires = Math.floor(Date.now() / 1000) + 3600;
-                return new Response("window.player = { url: 'https://vixsrc.to/playlist/42', params: {'token':'playback-token','expires':" + expires + "} };");
-            }
-            assert.equal(url.pathname, '/playlist/42');
-            assert.equal(url.searchParams.get('token'), 'playback-token');
-            assert.equal(url.searchParams.get('h'), '1');
-            assert.equal(new Headers(init?.headers).get('referer'), 'https://vixsrc.to/');
             return new Response(playlist);
         }
         if (url.hostname === 'previews.example') {
@@ -129,14 +111,6 @@ test('Roku can list the backup and VaPlayer resumes priority after a failed look
         vidzeeAvailable = false;
         assert.deepEqual((await lookup('tmdbId=550&sources=all')).streams.map((source: { provider: string }) => source.provider), ['VaPlayer']);
         assert.equal(vidzeeRequests.at(-1), '/streams/movie/550');
-        vixSrcAvailable = true;
-        assert.deepEqual((await lookup('tmdbId=550&previews=off&sources=all')).streams.map((source: { provider: string }) => source.provider), ['VaPlayer', 'VixSrc']);
-        vaPlayerAvailable = false;
-        const fallback = await lookup('tmdbId=120&previews=off');
-        assert.equal(fallback.provider, 'VixSrc');
-        assert.equal(fallback.format, 'hls');
-        assert.equal((await lookup('tmdbId=1396&season=2&episode=3&previews=off&refresh=1')).provider, 'VixSrc');
-        assert.deepEqual(vixLookups, ['/api/movie/550', '/api/movie/120', '/api/tv/1396/2/3']);
     } finally {
         if (originalKey === undefined) delete process.env.TMDB_API_KEY;
         else process.env.TMDB_API_KEY = originalKey;

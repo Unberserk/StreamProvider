@@ -3,7 +3,6 @@ import { HexaScraper } from './scrapers/Hexa.js';
 import { SflixScraper } from './scrapers/Sflix.js';
 import { VaPlayerScraper } from './scrapers/VaPlayer.js';
 import { VidZeeScraper } from './scrapers/VidZee.js';
-import { VixSrcScraper } from './scrapers/VixSrc.js';
 import {
     getCachedStream,
     setCachedStream,
@@ -77,43 +76,30 @@ async function resolvePrimary(
     return freshData;
 }
 
-async function verifiedBackup(scraper: BaseScraper, tmdbId: string, season?: number, episode?: number): Promise<ScraperResult> {
-    try {
-        const source = await scraper.extractStream(tmdbId, season, episode);
-        if (!await verifyStreamUrl(source)) throw new Error('Backup returned no playable HLS playlist');
-        return source;
-    } catch (error) {
-        const reason = error instanceof Error ? error.message : 'lookup failed';
-        console.warn('[StreamProvider] ' + scraper.constructor.name + ': ' + reason);
-        throw error;
-    }
+async function resolveVidZee(tmdbId: string, season?: number, episode?: number): Promise<ScraperResult> {
+    const source = await new VidZeeScraper().extractStream(tmdbId, season, episode);
+    if (!await verifyStreamUrl(source)) throw new Error('VidZee returned no playable HLS playlist');
+    return source;
 }
 
 export async function runScraper(tmdbId: string, season?: number, episode?: number, options: StreamOptions = {}): Promise<ScraperResult> {
     try {
         return await resolvePrimary(tmdbId, season, episode, options);
     } catch (primaryError) {
-        // Resolve the backups independently. The first existing backup retains priority.
-        const vix = verifiedBackup(new VixSrcScraper(), tmdbId, season, episode).catch(() => null);
-        const vidzee = await verifiedBackup(new VidZeeScraper(), tmdbId, season, episode).catch(() => null);
-        if (vidzee) return vidzee;
-        const fallback = await vix;
-        if (fallback) return fallback;
-        throw primaryError;
+        // Keep fallback streams out of the primary cache so VaPlayer gets the next attempt.
+        return await resolveVidZee(tmdbId, season, episode).catch(() => { throw primaryError; });
     }
 }
 
 export async function listStreams(tmdbId: string, season?: number, episode?: number, options: StreamOptions = {}): Promise<ScraperResult[]> {
-    const results = await Promise.allSettled([
+    const [primary, backup] = await Promise.allSettled([
         resolvePrimary(tmdbId, season, episode, options),
-        verifiedBackup(new VidZeeScraper(), tmdbId, season, episode),
-        verifiedBackup(new VixSrcScraper(), tmdbId, season, episode),
+        resolveVidZee(tmdbId, season, episode),
     ]);
-    const streams = new Map<string, ScraperResult>();
-    for (const result of results) {
-        if (result.status === 'fulfilled' && !streams.has(result.value.url)) streams.set(result.value.url, result.value);
+    if (primary.status === 'fulfilled') {
+        if (backup.status === 'fulfilled' && backup.value.url !== primary.value.url) return [primary.value, backup.value];
+        return [primary.value];
     }
-    const primary = results[0];
-    if (streams.size === 0 && primary.status === 'rejected') throw primary.reason;
-    return [...streams.values()];
+    if (backup.status === 'fulfilled') return [backup.value];
+    throw primary.reason;
 }
